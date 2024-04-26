@@ -1,5 +1,10 @@
-import pickle
-import sys, os
+import pickle, sys, os
+
+
+def main(folder):
+    data = load_data(folder)
+    calculate_total_dist(data)
+
 
 def load_data(folder : str) -> dict: 
     data = {}
@@ -9,16 +14,11 @@ def load_data(folder : str) -> dict:
             data[file] = pickle.load(f)
     return data
 
+def calculate_total_dist(data: dict) -> int:
+    total_dist = 0
+     
 
-def print_data(data : dict) -> None:
-    for key in data:
-        print(key)
-        print(data[key])
-        print("\n")
 
-def main(folder):
-    data = load_data(folder)
-    print_data(data)
 
 if __name__ == "__main__":
     if len(sys.argv) == 2:
