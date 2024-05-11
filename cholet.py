@@ -6,6 +6,7 @@ def main(folder):
     calculate_total_dist(data)
     calculate_weight(data)
     calculate_total_time(data)
+    calculate_total_weight(data)
 
 def load_data(folder : str) -> dict: 
     data = {}
@@ -36,9 +37,6 @@ def calculate_weight(data : dict):
         weight += weights[node]
         if weight < 0:
             weight = 0
-        print(weight)
-        if weight > 5850:
-            print("aaaaaaaaaaaaa")
 
 def calculate_total_time(data : dict) -> int:
     total_time = 0
