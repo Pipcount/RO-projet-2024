@@ -16,6 +16,7 @@ num_processes = multiprocessing.cpu_count() // 2
 def load_data(folder: str):
     files = os.listdir(folder)
     for file in files:
+        # if(file != "init_sol_Abers_pb2_bis.pickle"):
         with open(folder + "/" + file, 'rb') as f:
             data[file] = np.array(pickle.load(f))  # Convert data to NumPy array
 
@@ -121,6 +122,7 @@ if __name__ == "__main__":
     make_dico_bilat_pairs()
 
     solution = data["init_sol_Abers_pb2_bis.pickle"]
+    # solution = [i for i in range(280)]
     solution_paired = permutationList_to_pairList(solution)
 
     print("Initial solution: ", solution)
