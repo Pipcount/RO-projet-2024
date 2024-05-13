@@ -5,7 +5,7 @@ import signal
 import cProfile
 import pstats
 import numpy as np
-from itertools import combinations
+from itertools import combinations, islice
 import multiprocessing
 
 
@@ -19,21 +19,22 @@ def load_data(folder: str) -> dict:
         with open(folder + "/" + file, 'rb') as f:
             data[file] = np.array(pickle.load(f))  # Convert data to NumPy array
 
+
 def verify_calculate_weight(solution: np.ndarray) -> bool:
+
     weights = data["weight_Cholet_pb1_bis.pickle"]
-    node_weights = weights[solution]
+    node_weights = weights[solution]    
 
-    first_empty_index = np.where(node_weights == -5850)[0][0]
-
-    cumsum_left = np.cumsum(node_weights[:first_empty_index])
-    if np.any(cumsum_left > 5850):
+    cumsum_from_left = np.cumsum(node_weights)
+    if np.any(cumsum_from_left > 5850):
         return False
 
-    cumsum_right = np.cumsum(node_weights[first_empty_index + 1:-1])
-    if np.any(cumsum_right > 5850):
+    cumsum_from_right = np.cumsum(node_weights[::-1][1:])
+    if np.any(cumsum_from_right > 5850):
         return False
-
+    
     return True
+
 
 def calculate_total_dist(solution: np.ndarray) -> int:
     dist_matrix = data["dist_matrix_Cholet_pb1_bis.pickle"]
@@ -52,6 +53,12 @@ def get_all_segments(solution):
         if len(set(indices)) == k:
             segments.append(indices)
     return segments
+
+def get_all_segments_generator(solution):
+    k = 3
+    for indices in combinations(range(1, len(solution) - 1), k):
+        if len(set(indices)) == k:
+            yield indices
 
 def three_opt_swap(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[j:k], solution[i:j], solution[k:]))
@@ -75,12 +82,14 @@ def three_opt(solution):
     signal.signal(signal.SIGALRM, handler)
     signal.alarm(600) # 10 minutes timeout
 
+    segments = get_all_segments(solution)
+
 
     try:
         while improved:
             improved = False
-            segments = get_all_segments(solution)
             chunk_size = len(segments) // num_processes
+            print("Chunk size: ", chunk_size)
             chunks = [segments[i:i + chunk_size] for i in range(0, len(segments), chunk_size)]
             result_queue = multiprocessing.Queue()
             processes = []
@@ -107,7 +116,61 @@ def three_opt(solution):
     print("Time left: ", signal.alarm(0))
     return solution, best_distance
 
+
+def three_opt_gen(solution):
+    improved = True
+    best_distance = total_distance(solution)
+
+    def handler(signum, frame):
+        raise TimeoutError("Time limit exceeded")
+
+    signal.signal(signal.SIGALRM, handler)
+    signal.alarm(600) # 10 minutes timeout
+
+
+
+    try:
+        while improved:
+            improved = False
+            segments_generator = get_all_segments_generator(solution)
+            chunk_size = 300_000
+            result_queue = multiprocessing.Queue()
+            processes = []
+            while result_queue.empty():
+                chunks_done = False
+                for _ in range(num_processes):
+                    chunk = list(islice(segments_generator, chunk_size))
+                    if not chunk:
+                        chunks_done = True
+                        break
+                    process = multiprocessing.Process(target=three_opt_parallel, args=(solution, best_distance, chunk, result_queue))
+                    process.start()
+                    processes.append(process)
+
+                for process in processes:
+                    process.join()
+                if result_queue.empty() and not chunks_done:
+                    break
+
+
+            while not result_queue.empty():
+                new_solution, new_distance = result_queue.get()
+                if new_distance < best_distance:
+                    solution = new_solution
+                    best_distance = new_distance
+                    improved = True
+            print("Improved distance: ", best_distance)
+            print("Solution: ", solution)
+
+    except TimeoutError:
+        print("Time limit exceeded")
+
+    print("Time left: ", signal.alarm(0))
+    return solution, best_distance
+
 if __name__ == "__main__":
+
+
     print("Number of processes: ", num_processes)
     load_data("input_data/Probleme_Cholet_1_bis")
     solution = data["init_sol_Cholet_pb1_bis.pickle"]
