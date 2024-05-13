@@ -57,7 +57,7 @@ def four_opt_swap(solution, i, j, k, l):
 
 def four_opt_parallel(solution, best_distance, segments, result_queue):
     for i, j, k, l in segments:
-        new_solution = four_opt_parallel(solution, i, j, k, l)
+        new_solution = four_opt_swap(solution, i, j, k, l)
         new_distance = total_distance(new_solution)
         if new_distance < best_distance:
             result_queue.put((new_solution, new_distance))
