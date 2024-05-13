@@ -52,6 +52,13 @@ def k_opt_swap_v2(solution, indices):
 if __name__ == '__main__':
     load_data("input_data/Probleme_Cholet_1_bis")
     solution = data["init_sol_Cholet_pb1_bis.pickle"]
+
+    solution = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    segments = [(1, 4, 7)]
+    for i, j, k in segments:
+        new_solution = three_opt_swap(solution, i, j, k)
+        print(solution)
+        print(new_solution)
     
     # segments = get_all_segments(solution)
     # 
@@ -96,17 +103,17 @@ if __name__ == '__main__':
 
 
     # comparing 3-opt and 4-opt
-    three_opt_segments = [ (1, 4, 7), (2, 5, 8), (3, 6, 9) ]
-    four_opt_segments = [ (1, 4, 7, 10), (2, 5, 8, 11), (3, 6, 9, 12) ]
-    start = time.time()
-    for e in range(1000000):
-        for i, j, k in three_opt_segments:
-            new_solution = three_opt_swap(solution, i, j, k)
-    print("Time taken for 3-opt swap: ", time.time() - start)
+    # three_opt_segments = [ (1, 4, 7), (2, 5, 8), (3, 6, 9) ]
+    # four_opt_segments = [ (1, 4, 7, 10), (2, 5, 8, 11), (3, 6, 9, 12) ]
+    # start = time.time()
+    # for e in range(1000000):
+    #     for i, j, k in three_opt_segments:
+    #         new_solution = three_opt_swap(solution, i, j, k)
+    # print("Time taken for 3-opt swap: ", time.time() - start)
 
-    start = time.time()
-    for e in range(1000000):
-        for i, j, k, l in four_opt_segments:
-            new_solution = four_opt_swap(solution, i, j, k, l)
-    print("Time taken for 4-opt swap: ", time.time() - start)
+    # start = time.time()
+    # for e in range(1000000):
+    #     for i, j, k, l in four_opt_segments:
+    #         new_solution = four_opt_swap(solution, i, j, k, l)
+    # print("Time taken for 4-opt swap: ", time.time() - start)
 

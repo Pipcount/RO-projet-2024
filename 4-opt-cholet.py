@@ -113,9 +113,9 @@ if __name__ == "__main__":
     load_data("input_data/Probleme_Cholet_1_bis")
     solution = data["init_sol_Cholet_pb1_bis.pickle"]
 
-    test = get_all_segments(solution)
-    # print("Initial solution: ", solution)
-    # print("Initial distance: ", total_distance(solution))
-    # solution, best_distance = four_opt(solution)
-    # print("Final solution: ", solution)
-    # print("Final distance: ", best_distance)
+    # test = get_all_segments(solution)
+    print("Initial solution: ", solution)
+    print("Initial distance: ", total_distance(solution))
+    solution, best_distance = four_opt(solution)
+    print("Final solution: ", solution)
+    print("Final distance: ", best_distance)
