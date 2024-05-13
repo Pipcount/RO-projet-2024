@@ -1,17 +1,16 @@
 import os
 import sys
 import pickle
-import signal
-import cProfile
-import pstats
 import numpy as np
 from itertools import combinations, islice
 import multiprocessing
+import time
 
 
 INFINITY = sys.maxsize
 data: dict = {}
-num_processes = multiprocessing.cpu_count() // 2
+num_processes = (multiprocessing.cpu_count() // 2)
+time_limit = 600
 
 def load_data(folder: str) -> dict:
     files = os.listdir(folder)
@@ -64,114 +63,108 @@ def three_opt_swap(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[j:k], solution[i:j], solution[k:]))
     return new_solution.copy()
 
-def three_opt_parallel(solution, best_distance, segments, result_queue):
-    print(f"Process {os.getpid()} started with {len(segments)} segments")
+def three_opt_parallel(solution, best_distance, segments, result_queue, start_time):
+    print(f"Process {os.getpid()} is doing 3-opt")
+    best_distance_local = best_distance
+    new_best_solution = solution.copy()
+    found_better = False
     for i, j, k in segments:
+        if time.time() - start_time > time_limit:
+            print(f"Process {os.getpid()} time limit exceeded")
+            return
         new_solution = three_opt_swap(solution, i, j, k)
         new_distance = total_distance(new_solution)
-        if new_distance < best_distance:
-            result_queue.put((new_solution, new_distance))
+        if new_distance < best_distance_local - 10:
             print(f"Process {os.getpid()} found a better solution, distance delta: {best_distance - new_distance}")
-            # if best_distance - new_distance > 100:
-            #     print(f"Process {os.getpid()} is done")
-            #     return
-    print(f"Process {os.getpid()} did not find a better solution")
+            new_best_solution = new_solution
+            best_distance_local = new_distance
+            found_better = True
+    if found_better:
+        result_queue.put((new_best_solution, best_distance_local))
+        print(f"Process {os.getpid()} finished")
+    
+
+def four_opt_parallel(solution, best_distance, segments, result_queue, better_solution_found, lock, start_time):
+    print(f"Process {os.getpid()} is doing 4-opt")
+    for i, j, k in segments:
+        for l in range(k + 1, len(solution) - 1):
+            if time.time() - start_time > time_limit:
+                print(f"Process {os.getpid()} time limit exceeded")
+                return
+            with lock:
+                if better_solution_found.value:
+                    return
+            new_solution = four_opt_swap(solution, i, j, k, l)
+            new_distance = total_distance(new_solution)
+            if new_distance < best_distance:
+                print(f"Process {os.getpid()} found a better solution, distance delta: {best_distance - new_distance}")
+                result_queue.put((new_solution, new_distance))
+                with lock:
+                    better_solution_found.value = True
+                return
+
+
+def four_opt_swap(solution, i, j, k, l):
+    new_solution = np.concatenate((solution[:i], solution[k:l], solution[j:k], solution[i:j], solution[l:]))
+    return new_solution.copy()
 
 def three_opt(solution):
     improved = True
     best_distance = total_distance(solution)
 
-    def handler(signum, frame):
-        raise TimeoutError("Time limit exceeded")
-
-    signal.signal(signal.SIGALRM, handler)
-    signal.alarm(600) # 10 minutes timeout
 
     segments = get_all_segments(solution)
+    start = time.time()
+    processes = []
 
+    while improved and time.time() - start < time_limit:
+        improved = False
+        chunk_size = len(segments) // num_processes
+        chunks = [segments[i:i + chunk_size] for i in range(0, len(segments), chunk_size)]
 
-    try:
-        while improved:
-            improved = False
-            chunk_size = len(segments) // num_processes
-            chunks = [segments[i:i + chunk_size] for i in range(0, len(segments), chunk_size)]
+        if len(segments) % num_processes != 0:
             chunks[-2] += chunks[-1]
             chunks.pop(-1)
-            result_queue = multiprocessing.Queue()
-            processes = []
+
+        result_queue = multiprocessing.Queue()
+        for chunk in chunks:
+            process = multiprocessing.Process(target=three_opt_parallel, args=(solution, best_distance, chunk, result_queue, start))
+            process.start()
+            processes.append(process)
+
+        for process in processes:
+            process.join()
+
+        if result_queue.empty() and time.time() - start < time_limit:
+            print("!!! No better solution found using 3-opt, trying 4-opt !!!")
+            better_solution_found = multiprocessing.Value('b', False)
+            lock = multiprocessing.Lock()
             for chunk in chunks:
-                process = multiprocessing.Process(target=three_opt_parallel, args=(solution, best_distance, chunk, result_queue))
+                process = multiprocessing.Process(target=four_opt_parallel, args=(solution, best_distance, chunk, result_queue, better_solution_found, lock, start))
                 process.start()
                 processes.append(process)
-
+            
             for process in processes:
                 process.join()
-            
-            while not result_queue.empty():
-                new_solution, new_distance = result_queue.get()
-                if new_distance < best_distance:
-                    solution = new_solution
-                    best_distance = new_distance
-                    improved = True
-            print("Improved distance: ", best_distance)
 
-    except TimeoutError:
+        while not result_queue.empty():
+            new_solution, new_distance = result_queue.get()
+            if new_distance < best_distance:
+                solution = new_solution
+                best_distance = new_distance
+                improved = True
+        print("Improved distance: ", best_distance)
+        
+    for process in processes:
+        process.terminate()
+
+    if time.time() - start < time_limit:
+        print("Time left: ", time_limit - (time.time() - start))
+    else:
         print("Time limit exceeded")
 
-    print("Time left: ", signal.alarm(0))
     return solution, best_distance
 
-
-def three_opt_gen(solution):
-    improved = True
-    best_distance = total_distance(solution)
-
-    def handler(signum, frame):
-        raise TimeoutError("Time limit exceeded")
-
-    signal.signal(signal.SIGALRM, handler)
-    signal.alarm(600) # 10 minutes timeout
-
-
-
-    try:
-        while improved:
-            improved = False
-            segments_generator = get_all_segments_generator(solution)
-            chunk_size = 300_000
-            result_queue = multiprocessing.Queue()
-            processes = []
-            while result_queue.empty():
-                chunks_done = False
-                for _ in range(num_processes):
-                    chunk = list(islice(segments_generator, chunk_size))
-                    if not chunk:
-                        chunks_done = True
-                        break
-                    process = multiprocessing.Process(target=three_opt_parallel, args=(solution, best_distance, chunk, result_queue))
-                    process.start()
-                    processes.append(process)
-
-                for process in processes:
-                    process.join()
-                if result_queue.empty() and not chunks_done:
-                    break
-
-
-            while not result_queue.empty():
-                new_solution, new_distance = result_queue.get()
-                if new_distance < best_distance:
-                    solution = new_solution
-                    best_distance = new_distance
-                    improved = True
-            print("Improved distance: ", best_distance)
-            print("Solution: ", solution)
-
-    except TimeoutError:
-        print("Time limit exceeded")
-
-    print("Time left: ", signal.alarm(0))
-    return solution, best_distance
 
 if __name__ == "__main__":
 
@@ -231,4 +224,40 @@ Final solution:  [  0  80  81  82  83  84 210  85  86  87  88  78 214  89 213  9
      157 111 180 179 171 228 170 161 183 182 178 109  77 100 207 101 184 115
       79 162  98  99  91 206 230 203 154 153 102 160 224 113  76 223 232]
 Final distance:  42081
+
+
+With 6 processes, better chuncking and finding the best solution for every chunk:
+Time left:  339
+Final solution:  [  0  80  81  82  83  84 210  85  86  87  88  78 214  89 213  90 212 219
+ 216 204 211 155 177 169 108 172 168  16  17  18  19  40 122 133 167  34
+ 132 131 130  35  36  37  38  39  29 116 186  10   1   2 199  67  11  12
+ 187  68 191 146 117  69 163 103 104 105 106 136 135 134 107  43  44  45
+  46  47  48  49 166 165 164 147   4 158  26  27  28  24  25 126 125 124
+ 123  95 221 229  93 121 128 127 189  15  94  23 118 159  70  58  59 195
+  62  63  54 194 196 197   6   7 193   8 218 198 119 176  64  96   5 144
+ 143  41  13 222  14 142 227 120  42 175  20   9 145  51  52  53  65  55
+  56 139  57 138 129 137  60 192  61 185 141 140  50  21 200  22  31 202
+  32  33  71  72  66  74 205  97 112 152 151 226  75 225 209 217 215 231
+ 114 149 173 201 174 188  73 150 190  30 181 148   3 208 220 110  92 157
+ 111 180 179 171 228 170 161 183 182 178 109  77 100 207 101 184 115  79
+ 162  98  99  91 206 230 203 154 153 102 160 224 113  76 156 223 232]
+Final distance:  42427
+
+
+With 6 processes, better chuncking and finding the best solution for every chunk and delta > 10 for 3-opt:
+Time limit exceeded
+Final solution:  [  0  77 100 207 101 184 115  79 177 178 109  80  81  82  83  84 210  85
+  86  87  88  78 214  89 213  90 212 219 216 204 211 155 169 108 172 168
+  43  44  45  46  47  48  49 166 165  29 116 186  10   1   2 199  67  11
+ 158 189  15 127  94  23  26  27  28  24  25 126 125 124 123  95 103 104
+ 105 106 136 135 134 107  16  17  18  19  40 122 133 167  34 132 131 130
+  35  36  37  38  39 164 147   4  12 187  68 191 146 117  69 163 221 229
+  93 121 128 118 159  70  20 137 120 222  14 142 227 195  62  63  54 194
+ 196 197   6   7 193   8 218 198 119 176  64  96   5 144 143  41  13  42
+ 175  58  59  60 192  61 185 141 140  50   9 145  51  52  53  65  55  56
+ 139  57 138 129  21 200  22  31 202  32  33  71  72  66  74 205  97 112
+ 152 151 226  75 225 209 217 215 231 114 149 173 201 174 188  73 150 190
+  30 181 148   3 208 220 110  92 157 111 180 179 171 228 170 161 183 182
+  91 206 230 162  98  99 203 154 153 102 160 224 113  76 156 223 232]
+Final distance:  41866
 """
