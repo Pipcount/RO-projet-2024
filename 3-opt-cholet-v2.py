@@ -65,12 +65,17 @@ def three_opt_swap(solution, i, j, k):
     return new_solution.copy()
 
 def three_opt_parallel(solution, best_distance, segments, result_queue):
+    print(f"Process {os.getpid()} started with {len(segments)} segments")
     for i, j, k in segments:
         new_solution = three_opt_swap(solution, i, j, k)
         new_distance = total_distance(new_solution)
         if new_distance < best_distance:
             result_queue.put((new_solution, new_distance))
-            return
+            print(f"Process {os.getpid()} found a better solution, distance delta: {best_distance - new_distance}")
+            # if best_distance - new_distance > 100:
+            #     print(f"Process {os.getpid()} is done")
+            #     return
+    print(f"Process {os.getpid()} did not find a better solution")
 
 def three_opt(solution):
     improved = True
@@ -89,8 +94,9 @@ def three_opt(solution):
         while improved:
             improved = False
             chunk_size = len(segments) // num_processes
-            print("Chunk size: ", chunk_size)
             chunks = [segments[i:i + chunk_size] for i in range(0, len(segments), chunk_size)]
+            chunks[-2] += chunks[-1]
+            chunks.pop(-1)
             result_queue = multiprocessing.Queue()
             processes = []
             for chunk in chunks:
@@ -108,7 +114,6 @@ def three_opt(solution):
                     best_distance = new_distance
                     improved = True
             print("Improved distance: ", best_distance)
-            print("Solution: ", solution)
 
     except TimeoutError:
         print("Time limit exceeded")
@@ -208,4 +213,22 @@ in around 1.5 minutes with 16 processes :
 
 distance: 41497
 
+
+
+With 6 processes (and better chunking and process returning only if delta  > 100):
+Time left:  321
+Final solution:  [  0  80  81  82  83  84 210  85  86  87  88  78 214  89 213  90 212 219
+     216 204 211 155 177  93 121 128 127 189  15  94  23  26  27  28  24  25
+     126 125 124 123  95 221 229  29 116 186  10   1   2 199  67  11  12 187
+      68 191 146 117  69 163 103 104 105  34 132 131 130  35  36  37  38  39
+     106 136 135 134 107  16  40 122 133  17  18  19 108 169 172 168 167  43
+      44  45  46  47  48  49 166 165 164 147   4 158 118 144 143  41  13 222
+      14 142 227 195  62  63  54 194 196 197   6   7 193   8 218 198 119 176
+      64  96   5 159  70  20   9 145  51  52  53  65  55  56 139  57 138 129
+     137 120  42 175  58  59  60 192  61 185 141 140  50  21 200  22  31 202
+      32  33  71  72  66  74 205  75 152 151 226  97 112 156 225 209 217 215
+     231 114 149 173 201 174 188  73 150 190  30 181 148   3 208 220 110  92
+     157 111 180 179 171 228 170 161 183 182 178 109  77 100 207 101 184 115
+      79 162  98  99  91 206 230 203 154 153 102 160 224 113  76 223 232]
+Final distance:  42081
 """
