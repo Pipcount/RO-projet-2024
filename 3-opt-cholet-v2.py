@@ -53,11 +53,6 @@ def get_all_segments(solution):
             segments.append(indices)
     return segments
 
-def get_all_segments_generator(solution):
-    k = 3
-    for indices in combinations(range(1, len(solution) - 1), k):
-        if len(set(indices)) == k:
-            yield indices
 
 def three_opt_swap(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[j:k], solution[i:j], solution[k:]))
