@@ -19,7 +19,7 @@ def load_data(folder: str) -> dict:
             data[file] = np.array(pickle.load(f))  # Convert data to NumPy array
 
 
-def verify_calculate_weight(solution: np.ndarray) -> bool:
+def verify_calculate_weight(solution: np.ndarray, data) -> bool:
 
     weights = data["weight_Cholet_pb1_bis.pickle"]
     node_weights = weights[solution]    
@@ -35,14 +35,14 @@ def verify_calculate_weight(solution: np.ndarray) -> bool:
     return True
 
 
-def calculate_total_dist(solution: np.ndarray) -> int:
+def calculate_total_dist(solution: np.ndarray, data) -> int:
     dist_matrix = data["dist_matrix_Cholet_pb1_bis.pickle"]
     total_dist = np.sum(dist_matrix[solution[:-1], solution[1:]])  # Calculate total distance using NumPy array indexing
     return total_dist
 
-def total_distance(solution: np.ndarray) -> int:
-    if verify_calculate_weight(solution):
-        return calculate_total_dist(solution)
+def total_distance(solution: np.ndarray, data) -> int:
+    if verify_calculate_weight(solution, data):
+        return calculate_total_dist(solution, data)
     return INFINITY
 
 def get_all_segments(solution):
@@ -58,7 +58,7 @@ def three_opt_swap(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[j:k], solution[i:j], solution[k:]))
     return new_solution.copy()
 
-def three_opt_parallel(solution, best_distance, segments, result_queue, start_time):
+def three_opt_parallel(solution, best_distance, segments, result_queue, start_time, data):
     print(f"Process {os.getpid()} is doing 3-opt")
     best_distance_local = best_distance
     new_best_solution = solution.copy()
@@ -68,7 +68,7 @@ def three_opt_parallel(solution, best_distance, segments, result_queue, start_ti
             print(f"Process {os.getpid()} time limit exceeded")
             return
         new_solution = three_opt_swap(solution, i, j, k)
-        new_distance = total_distance(new_solution)
+        new_distance = total_distance(new_solution, data)
         if new_distance < best_distance_local:
             print(f"Process {os.getpid()} found a better solution, distance delta: {best_distance - new_distance}")
             new_best_solution = new_solution
@@ -79,7 +79,7 @@ def three_opt_parallel(solution, best_distance, segments, result_queue, start_ti
         print(f"Process {os.getpid()} finished")
     
 
-def four_opt_parallel(solution, best_distance, segments, result_queue, better_solution_found, lock, start_time):
+def four_opt_parallel(solution, best_distance, segments, result_queue, better_solution_found, lock, start_time, data):
     print(f"Process {os.getpid()} is doing 4-opt")
     for i, j, k in segments:
         for l in range(k + 1, len(solution) - 1):
@@ -90,7 +90,7 @@ def four_opt_parallel(solution, best_distance, segments, result_queue, better_so
                 if better_solution_found.value:
                     return
             new_solution = four_opt_swap(solution, i, j, k, l)
-            new_distance = total_distance(new_solution)
+            new_distance = total_distance(new_solution, data)
             if new_distance < best_distance:
                 print(f"Process {os.getpid()} found a better solution, distance delta: {best_distance - new_distance}")
                 result_queue.put((new_solution, new_distance))
@@ -105,7 +105,7 @@ def four_opt_swap(solution, i, j, k, l):
 
 def three_opt(solution):
     improved = True
-    best_distance = total_distance(solution)
+    best_distance = total_distance(solution, data)
 
 
     segments = get_all_segments(solution)
@@ -123,7 +123,7 @@ def three_opt(solution):
 
         result_queue = multiprocessing.Queue()
         for chunk in chunks:
-            process = multiprocessing.Process(target=three_opt_parallel, args=(solution, best_distance, chunk, result_queue, start))
+            process = multiprocessing.Process(target=three_opt_parallel, args=(solution, best_distance, chunk, result_queue, start, data))
             process.start()
             processes.append(process)
 
@@ -135,7 +135,7 @@ def three_opt(solution):
             better_solution_found = multiprocessing.Value('b', False)
             lock = multiprocessing.Lock()
             for chunk in chunks:
-                process = multiprocessing.Process(target=four_opt_parallel, args=(solution, best_distance, chunk, result_queue, better_solution_found, lock, start))
+                process = multiprocessing.Process(target=four_opt_parallel, args=(solution, best_distance, chunk, result_queue, better_solution_found, lock, start, data))
                 process.start()
                 processes.append(process)
             
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     solution = data["init_sol_Cholet_pb1_bis.pickle"]
 
     print("Initial solution: ", solution)
-    print("Initial distance: ", total_distance(solution))
+    print("Initial distance: ", total_distance(solution, data))
     solution, best_distance = three_opt(solution)
     print("Final solution: ", solution)
     print("Final distance: ", best_distance)
