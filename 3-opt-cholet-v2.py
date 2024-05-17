@@ -9,7 +9,7 @@ import time
 
 INFINITY = sys.maxsize
 data: dict = {}
-num_processes = (multiprocessing.cpu_count() // 2)
+num_processes = 6 # (multiprocessing.cpu_count() // 2)
 time_limit = 600
 
 def load_data(folder: str) -> dict:
@@ -109,6 +109,7 @@ def three_opt(solution):
 
 
     segments = get_all_segments(solution)
+    np.random.shuffle(segments)
     start = time.time()
     processes = []
 
