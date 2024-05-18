@@ -99,6 +99,8 @@ def three_opt_parallel(segments, best_solution, best_distance, start_time, shape
             best_solution_for_now = np.frombuffer(best_solution, dtype='d').reshape(shape)
         new_best_solution = best_solution_for_now.copy()
         for i, j, k in segments:
+            if time.time() - start_time > time_limit:
+                break
             for swap in [three_opt_swap1, three_opt_swap2, three_opt_swap3, three_opt_swap4, three_opt_swap5, three_opt_swap6, three_opt_swap7]:
                 new_solution = swap(best_solution_for_now, i, j, k)
                 new_distance = total_distance(new_solution, data)
