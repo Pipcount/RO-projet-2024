@@ -9,7 +9,7 @@ import time
 
 INFINITY = sys.maxsize
 data: dict = {}
-num_processes = 10# (multiprocessing.cpu_count() // 2)
+num_processes = (multiprocessing.cpu_count() // 2)
 time_limit = 600
 
 def load_data(folder: str) -> dict:
