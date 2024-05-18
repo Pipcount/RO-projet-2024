@@ -29,6 +29,13 @@ def three_opt_swap(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[j:k], solution[i:j], solution[k:]))
     return new_solution.copy()
 
+def three_opt_swap_v2(solution, i, j, k):
+    new_solution = np.empty_like(solution)
+    new_solution[:i] = solution[:i]
+    new_solution[i:i + (k - j)] = solution[j:k]
+    new_solution[i + (k - j):i + (k - j) + (j - i)] = solution[i:j]
+    new_solution[i + (k - j) + (j - i):] = solution[k:]
+    return new_solution
 
 def four_opt_swap(solution, i, j, k, l):
     new_solution = np.concatenate((solution[:i], solution[k:l], solution[j:k], solution[i:j], solution[l:]))
@@ -53,12 +60,24 @@ if __name__ == '__main__':
     load_data("input_data/Probleme_Cholet_1_bis")
     solution = data["init_sol_Cholet_pb1_bis.pickle"]
 
-    solution = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    segments = [(1, 4, 7)]
+    # Testing 3-opt swap
+    segments = get_all_segments(solution)
+    start = time.time()
     for i, j, k in segments:
         new_solution = three_opt_swap(solution, i, j, k)
-        print(solution)
-        print(new_solution)
+    print("Time taken for 3-opt swap: ", time.time() - start)
+
+    start = time.time()
+    for i, j, k in segments:
+        new_solution = three_opt_swap_v2(solution, i, j, k)
+    print("Time taken for 3-opt swap v2: ", time.time() - start)
+
+    # solution = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    # segments = [(1, 4, 7)]
+    # for i, j, k in segments:
+    #     new_solution = three_opt_swap(solution, i, j, k)
+    #     print(solution)
+    #     print(new_solution)
     
     # segments = get_all_segments(solution)
     # 
