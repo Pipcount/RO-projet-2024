@@ -89,10 +89,9 @@ def three_opt_swap7(solution, i, j, k):
     return new_solution.copy()
 
 
-def three_opt_parallel(segments, best_solution, best_distance, start_time, shape, solution_lock, barrier, event):
+def three_opt_parallel(segments, best_solution, best_distance, start_time, shape, solution_lock, barrier):
     print(f"Process {os.getpid()} started")
     while time.time() - start_time < time_limit:
-        event.clear()
         with best_distance.get_lock():
             best_distance_for_now = best_distance.value
         new_best_distance = best_distance_for_now
@@ -123,35 +122,7 @@ def three_opt_parallel(segments, best_solution, best_distance, start_time, shape
 
         # Wait for all processes to update the best solution
         barrier.wait()
-        four_opt = False
         with best_distance.get_lock():
-            if best_distance.value == best_distance_for_now:
-                print(f"3-opt did not find a better solution, trying 4-opt, time: {time.time() - start_time}")
-                four_opt = True
-
-        if four_opt:
-            for i, j, k in segments:
-                if time.time() - start_time > time_limit or event.is_set():
-                    break
-                for l in range(k + 1, len(best_solution_for_now) - 1):
-                    if time.time() - start_time > time_limit or event.is_set():
-                        break
-                    new_solution = four_opt_swap1(best_solution_for_now, i, j, k, l)
-                    new_distance = total_distance(new_solution, data)
-                    if new_distance < best_distance_for_now:
-                        print(f"Process {os.getpid()} found a better solution: {new_distance}, delta: {best_distance_for_now - new_distance}, time: {time.time() - start_time}")
-                        if event.is_set():
-                            break
-                        event.set()
-                        with solution_lock and best_distance.get_lock():
-                            best_distance.value = new_distance
-                            best_solution[:] = new_solution.flatten()
-                            print(f"Current best distance: {best_distance.value}, time: {time.time() - start_time}")
-                            break
-
-        # Wait for all processes to finish the iteration
-        barrier.wait()
-
 
 
     print(f"Process {os.getpid()} finished")
@@ -212,10 +183,9 @@ def three_opt(solution):
     best_solution_lock = multiprocessing.Lock()
     best_distance_value = multiprocessing.Value('d', best_distance)
     barrier = multiprocessing.Barrier(num_processes)
-    event = multiprocessing.Event()
 
     for chunk in chunks:
-        process = multiprocessing.Process(target=three_opt_parallel, args=(chunk, best_solution, best_distance_value, start, solution_shape, best_solution_lock, barrier, event))
+        process = multiprocessing.Process(target=three_opt_parallel, args=(chunk, best_solution, best_distance_value, start, solution_shape, best_solution_lock, barrier))
         process.start()
         processes.append(process)
 
