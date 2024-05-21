@@ -67,10 +67,10 @@ if __name__ == '__main__':
         new_solution = three_opt_swap(solution, i, j, k)
     print("Time taken for 3-opt swap: ", time.time() - start)
 
-    start = time.time()
-    for i, j, k in segments:
-        new_solution = three_opt_swap_v2(solution, i, j, k)
-    print("Time taken for 3-opt swap v2: ", time.time() - start)
+    # start = time.time()
+    # for i, j, k in segments:
+    #     new_solution = three_opt_swap_v2(solution, i, j, k)
+    # print("Time taken for 3-opt swap v2: ", time.time() - start)
 
     # solution = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     # segments = [(1, 4, 7)]

@@ -67,29 +67,41 @@ def verify_calculate_weight_new_v2(solution: list) -> bool:
     
     return True
 
+def calculate_total_dist(solution: np.ndarray) -> int:
+    dist_matrix = data["dist_matrix_Cholet_pb1_bis.pickle"]
+    total_dist = np.sum(dist_matrix[solution[:-1], solution[1:]])  # Calculate total distance using NumPy array indexing
+    return total_dist
+
 if __name__ == '__main__':
     load_data("input_data/Probleme_Cholet_1_bis")
     solution = data["init_sol_Cholet_pb1_bis.pickle"]
     
     start = time.time()
     for i in range(10000):
-        verify_calculate_weight_leftnright(solution)
-    print("Time taken for leftnright: ", time.time() - start)
-
-    start = time.time()
-    for i in range(10000):
-        verify_calculate_weight_classic(solution)
-    print("Time taken for classic: ", time.time() - start)
-
-    start = time.time()
-    for i in range(10000):
-        verify_calculate_weight_new(solution)
-    print("Time taken for new: ", time.time() - start)
-
-
-    start = time.time()
-    for i in range(10000):
+        np.random.shuffle(solution)
         verify_calculate_weight_new_v2(solution)
     print("Time taken for new v2: ", time.time() - start)
+
+    start = time.time()
+    for i in range(10000):
+        np.random.shuffle(solution)
+        calculate_total_dist(solution)
+    print("Time taken for total distance: ", time.time() - start)
+    # start = time.time()
+    # for i in range(10000):
+    #     verify_calculate_weight_leftnright(solution)
+    # print("Time taken for leftnright: ", time.time() - start)
+    #
+    # start = time.time()
+    # for i in range(10000):
+    #     verify_calculate_weight_classic(solution)
+    # print("Time taken for classic: ", time.time() - start)
+    #
+    # start = time.time()
+    # for i in range(10000):
+    #     verify_calculate_weight_new(solution)
+    # print("Time taken for new: ", time.time() - start)
+
+
 
 
