@@ -67,12 +67,36 @@ def verify_calculate_weight_new_v2(solution: list) -> bool:
     
     return True
 
+def verify_calculate_weight_new_v3(solution: list) -> bool:
+    weights = data["weight_Cholet_pb1_bis.pickle"]
+    node_weights = weights[solution]    
+    left_pointer = 0
+    right_pointer = len(node_weights) - 2 # -2 because the last element is -5850
+    left_sum = 0
+    right_sum = 0
+    while left_pointer < right_pointer:
+        left_sum += node_weights[left_pointer]
+        right_sum += node_weights[right_pointer]
+        if left_sum > 5850 or right_sum > 5850:
+            return False
+        left_pointer += 1
+        right_pointer -= 1
+    return True
+
 def calculate_total_dist(solution: np.ndarray) -> int:
     dist_matrix = data["dist_matrix_Cholet_pb1_bis.pickle"]
     total_dist = np.sum(dist_matrix[solution[:-1], solution[1:]])  # Calculate total distance using NumPy array indexing
     return total_dist
 
 if __name__ == '__main__':
+"""
+    Currently the fastest function is verify_calculate_weight_new_v2
+
+"""
+
+
+
+
     load_data("input_data/Probleme_Cholet_1_bis")
     solution = data["init_sol_Cholet_pb1_bis.pickle"]
     
@@ -87,6 +111,12 @@ if __name__ == '__main__':
         np.random.shuffle(solution)
         calculate_total_dist(solution)
     print("Time taken for total distance: ", time.time() - start)
+
+    start = time.time()
+    for i in range(10000):
+        np.random.shuffle(solution)
+        verify_calculate_weight_new_v3(solution)
+    print("Time taken for new v3: ", time.time() - start)
     # start = time.time()
     # for i in range(10000):
     #     verify_calculate_weight_leftnright(solution)
