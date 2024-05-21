@@ -9,8 +9,8 @@ import time
 
 INFINITY = sys.maxsize
 data: dict = {}
-num_processes = 6 #(multiprocessing.cpu_count() // 2)
-time_limit = 600
+num_processes = 10 #(multiprocessing.cpu_count() // 2)
+time_limit = 1200
 
 def load_data(folder: str) -> dict:
     files = os.listdir(folder)
@@ -64,31 +64,31 @@ def get_all_segments(solution):
 
 def three_opt_swap1(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[j:k], solution[i:j], solution[k:]))
-    return new_solution.copy()
+    return new_solution
 
 def three_opt_swap2(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[j:k][::-1], solution[i:j], solution[k:]))
-    return new_solution.copy()
+    return new_solution
 
 def three_opt_swap3(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[j:k], solution[i:j][::-1], solution[k:]))
-    return new_solution.copy()
+    return new_solution
 
 def three_opt_swap4(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[j:k][::-1], solution[i:j][::-1], solution[k:]))
-    return new_solution.copy()
+    return new_solution
 
 def three_opt_swap5(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[i:j][::-1], solution[j:k], solution[k:]))
-    return new_solution.copy()
+    return new_solution
 
 def three_opt_swap6(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[i:j][::-1], solution[j:k][::-1], solution[k:]))
-    return new_solution.copy()
+    return new_solution
 
 def three_opt_swap7(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[i:j], solution[j:k][::-1], solution[k:]))
-    return new_solution.copy()
+    return new_solution
 
 def three_opt_parallel(segments, best_solution, start_time, shape, solution_lock, event, queue):
     print(f"Process {os.getpid()} started")
@@ -107,7 +107,7 @@ def three_opt_parallel(segments, best_solution, start_time, shape, solution_lock
                 new_distance = total_distance(new_solution, data, best_new_distance)
                 if new_distance < best_new_distance:
                     best_new_distance = new_distance
-                    best_new_solution = new_solution.copy() # copy maybe not needed
+                    best_new_solution = new_solution
         queue.put((best_new_distance, best_new_solution))
 
         print(f"Process {os.getpid()} finished iteration")
