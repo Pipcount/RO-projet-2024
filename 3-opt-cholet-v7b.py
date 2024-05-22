@@ -90,7 +90,21 @@ def three_opt_swap7(solution, i, j, k):
     new_solution = np.concatenate((solution[:i], solution[i:j], solution[j:k][::-1], solution[k:]))
     return new_solution
 
-def three_opt_parallel(segments, best_solution, start_time, shape, solution_lock, event, queue):
+def safe_get_hashed_solutions(hashed_solutions):
+    items = []
+    start = time.time()
+    while True:
+        try:
+            item = hashed_solutions.get_nowait()
+            items.append(item)
+        except:
+            break
+        if time.time() - start > 2:
+            print("get timeout")
+            break
+    return items
+
+def three_opt_parallel(segments, best_solution, start_time, shape, solution_lock, event, queue, hashed_solutions):
     print(f"Process {os.getpid()} started")
 
     while time.time() - start_time < time_limit:
@@ -99,23 +113,30 @@ def three_opt_parallel(segments, best_solution, start_time, shape, solution_lock
         with solution_lock:
             best_solution_for_now = np.frombuffer(best_solution, dtype='d').reshape(shape)
         best_new_solution = np.array([])
+        hasheds = safe_get_hashed_solutions(hashed_solutions)
+        print(f"Process {os.getpid()} got hashed solutions")
         for i, j, k in segments:
-            for swap in [three_opt_swap1]: #, three_opt_swap2, three_opt_swap3, three_opt_swap4, three_opt_swap5, three_opt_swap6, three_opt_swap7]:
-                if time.time() - start_time > time_limit:
-                    return
-                new_solution = swap(best_solution_for_now, i, j, k)
+            if time.time() - start_time > time_limit:
+                return
+            new_solution = three_opt_swap1(best_solution_for_now, i, j, k)
+            new_distance = INFINITY
+
+            if hash(tuple(new_solution)) not in hasheds:
                 new_distance = total_distance(new_solution, data, best_new_distance)
-                if new_distance < best_new_distance:
-                    best_new_distance = new_distance
-                    best_new_solution = new_solution
+            else:
+                print("Solution already hashed")
+            if new_distance < best_new_distance:
+                best_new_distance = new_distance
+                best_new_solution = new_solution
         queue.put((best_new_distance, best_new_solution))
 
         print(f"Process {os.getpid()} finished iteration")
         event.wait()
 
 
-def update_solution(best_solution, best_distance, start_time, solution_lock, event, queue):
+def update_solution(best_solution, best_distance, start_time, solution_lock, event, queue, hashed_solutions):
     print("Solution updater started")
+    best_solution_of_all_time = (INFINITY, None)
     while time.time() - start_time < time_limit:
         event.clear()
         if queue.qsize() == num_processes:
@@ -125,10 +146,16 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
                 distance, solution = queue.get()
                 if distance < best_queue_solution[0]:
                     best_queue_solution = (distance, solution)
+            if best_queue_solution[0] < best_solution_of_all_time[0]:
+                best_solution_of_all_time = best_queue_solution
+
             with best_distance.get_lock() and solution_lock:
                 print(f"Current best distance: {best_queue_solution[0]}, delta: {best_distance.value - best_queue_solution[0]}, time: {time.time() - start_time}")
                 best_distance.value = best_queue_solution[0]
                 best_solution[:] = best_queue_solution[1].flatten()
+            hasheds = safe_get_hashed_solutions(hashed_solutions)
+            assert hash(tuple(best_queue_solution[1])) not in hasheds, "Solution already hashed"
+            hashed_solutions.put(hash(tuple(best_queue_solution[1])))
             event.set()
         time.sleep(1)
 
@@ -140,7 +167,7 @@ def three_opt(solution):
     best_distance = total_distance(solution, data, INFINITY)
     segments = get_all_segments(solution)
     # np.random.seed(seed)
-    np.random.shuffle(segments)
+    # np.random.shuffle(segments)
     processes = []
 
     chunk_size = len(segments) // num_processes
@@ -155,13 +182,14 @@ def three_opt(solution):
     best_distance_value = multiprocessing.Value('d', best_distance)
     event = multiprocessing.Event()
     queue = multiprocessing.Queue(maxsize=num_processes)
+    hashed_solutions = multiprocessing.Queue()
 
     for chunk in chunks:
-        p = multiprocessing.Process(target=three_opt_parallel, args=(chunk, best_solution, start, solution_shape, best_solution_lock, event, queue))
+        p = multiprocessing.Process(target=three_opt_parallel, args=(chunk, best_solution, start, solution_shape, best_solution_lock, event, queue, hashed_solutions))
         p.start()
         processes.append(p)
 
-    solution_updater = multiprocessing.Process(target=update_solution, args=(best_solution, best_distance_value, start, best_solution_lock, event, queue))
+    solution_updater = multiprocessing.Process(target=update_solution, args=(best_solution, best_distance_value, start, best_solution_lock, event, queue, hashed_solutions))
     solution_updater.start()
     processes.append(solution_updater)
 
@@ -185,59 +213,6 @@ if __name__ == "__main__":
     print("Initial solution: ", solution)
     print("Initial distance: ", total_distance(solution, data, INFINITY))
     best_solution, best_distance = three_opt(solution)
-    print("Best solution: ", best_solution)
+    print("Best solution: ", list(best_solution))
     print("Best distance: ", best_distance)
-
-
-"""
-3-opt-swap_1:
-distance: 42044
-
-    solution = np.array([  0,  80,  81,  82,  83,  84, 210,  85,  86,  87,  88,  78,  89,  90,
- 212, 219, 213, 214, 216, 204, 211, 155, 177, 169, 168, 167,  43,  44,
-  45,  46,  47,  48,  49, 166,  34, 132, 131, 130,  35,  36,  37,  38,
-  39, 165, 164, 147,   4,  12,  68, 191, 146, 187, 158,  26,  27,  28,
-  24,  25, 126, 125, 124, 123,  95, 221, 229,  29,   1,   2, 199, 116,
-  67, 186,  10,  11, 117,  69, 163, 103, 104, 105, 106, 136, 135, 134,
- 107,  16,  40, 122, 133,  17,  18,  19, 108, 172,  93, 121, 189, 128,
- 127,  15,  94,  23, 118,  70,  58,  59,  60, 195,  62,  63,  54, 196,
- 194, 197,   6,   7,   8, 218, 198, 119, 193, 176,  64,  96,   5, 159,
- 144, 143,  41,  13,  14, 142, 227, 120, 222,  42, 175,  20,  55,  56,
- 139,  57, 138,   9, 145,  51,  52,  53,  65, 129, 137,  61, 185, 141,
- 192, 140,  50,  21, 200,  22,  31, 202,  32,  33,  71,  72,  66,  74,
- 205,  75, 152, 151, 226,  97, 112, 156, 209, 217, 215, 231, 114, 149,
- 173, 201, 174, 188,  73, 150, 190,  30, 181, 148,   3, 208, 220, 110,
-  92, 157, 111, 180, 179, 171, 228, 170, 161, 183, 182, 178, 109,  77,
- 100, 101, 184, 115,  79, 162,  98,  99, 203,  91, 230, 206, 154, 153,
- 102, 207, 160, 224, 113,  76, 225, 223, 232])
-
-
-3-opt-swap_2:
-distance 49226
-
-3-opt-swap_3:
-distance: 49110
-
-3-opt-swap_4:
-distance: 49403
-
-3-opt-swap_5:
-distance: 49403
-
-
-3-opt-swap_6:
-distance: 49403
-
-3-opt-swap_7:
-distance: 49403
-
-
-"""
-
-
-
-
-
-
-
 
