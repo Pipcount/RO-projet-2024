@@ -50,13 +50,15 @@ def load_data(folder: str) -> dict:
         with open(folder + "/" + file, 'rb') as f:
             data[file] = np.array(pickle.load(f))  # Convert data to NumPy array
 
-def verify_calculate_weight(solution: np.ndarray, data) -> bool:
-    weights = data["weight_Cholet_pb1_bis.pickle"]
+def verify_calculate_weight(solution : np.ndarray, data : dict) -> bool:
+    weights = data["bonus_multi_commodity_Cholet_pb1_bis.pickle"]
+    return verify_calculate_weight_indexed(solution, weights, 0) and verify_calculate_weight_indexed(solution, weights, 1)
 
+def verify_calculate_weight_indexed(solution : np.ndarray, weights : np.ndarray, index : int) -> bool:
     # Ensure solution indices are integers
     solution = solution.astype(int)
     
-    node_weights = weights[solution]    
+    node_weights = [weight[index] for weight in weights[solution]]
 
     cumsum_from_left = np.cumsum(node_weights)
     if np.any(cumsum_from_left > 5850):
@@ -71,11 +73,11 @@ def verify_calculate_weight(solution: np.ndarray, data) -> bool:
 def save_solution(solution : np.ndarray, best_distance : int, random_seed : int):
     best_distance = int(best_distance)
     os.makedirs(os.path.dirname("./output_data/"), exist_ok=True)
-    os.makedirs(os.path.dirname("./output_data/Problem_Cholet_1_bis/"), exist_ok=True)
-    os.makedirs(os.path.dirname(f"./output_data/Problem_Cholet_1_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/"), exist_ok=True)
-    solution_filename = f"output_data/Problem_Cholet_1_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/solution.csv"
+    os.makedirs(os.path.dirname("./output_data/Problem_Cholet_1_bis_bonus/"), exist_ok=True)
+    os.makedirs(os.path.dirname(f"./output_data/Problem_Cholet_1_bis_bonus/{best_distance}_{random_seed}_{time_limit}_{num_processes}/"), exist_ok=True)
+    solution_filename = f"output_data/Problem_Cholet_1_bis_bonus/{best_distance}_{random_seed}_{time_limit}_{num_processes}/solution.csv"
     np.savetxt(solution_filename, solution.flatten(), delimiter=",", fmt="%d", newline=", ")
-    params_filename = f"output_data/Problem_Cholet_1_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/parameters.csv"
+    params_filename = f"output_data/Problem_Cholet_1_bis_bonus/{best_distance}_{random_seed}_{time_limit}_{num_processes}/parameters.csv"
     with open(params_filename, 'w') as f:
         f.write(f"Best Distance found, {best_distance}\n")
         f.write(f"Random Seed, {random_seed}\n")
@@ -298,7 +300,12 @@ if __name__ == "__main__":
     print_separation()
     print("Number of processes:", num_processes)
     load_data("input_data/Probleme_Cholet_1_bis")
+
     solution = data["init_sol_Cholet_pb1_bis.pickle"]
+    weights = data["bonus_multi_commodity_Cholet_pb1_bis.pickle"]
+    weights[-1] = (-5850, -5850)
+    weights[-2] = (-5850, -5850)
+
     print("Initial solution:", solution)
     print("Initial distance:", total_distance(solution, data, INFINITY, []))
     print_separation()

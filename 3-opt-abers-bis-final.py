@@ -15,6 +15,7 @@ import psutil
 
 INFINITY = sys.maxsize
 data: dict = {}
+bilat_pairs : dict = {}
 num_processes = 24 #(multiprocessing.cpu_count() // 2)
 time_limit = 600
 
@@ -24,7 +25,7 @@ random_seed = 322796
 do_screen_clear = True
 
 iteration_without_improvement_threshold = 3
-iterations_per_process = 5
+iterations_per_process = 1
 
 def clear_screen():
     print("\033c", end="")
@@ -50,32 +51,26 @@ def load_data(folder: str) -> dict:
         with open(folder + "/" + file, 'rb') as f:
             data[file] = np.array(pickle.load(f))  # Convert data to NumPy array
 
-def verify_calculate_weight(solution: np.ndarray, data) -> bool:
-    weights = data["weight_Cholet_pb1_bis.pickle"]
+def make_dico_bilat_pairs():
+    pairs = data["bilat_pairs_Abers_pb2_bis.pickle"]
+    for pair in pairs:
+        bilat_pairs[pair[0]] = pair[1]
+        bilat_pairs[pair[1]] = pair[0]
 
-    # Ensure solution indices are integers
-    solution = solution.astype(int)
-    
-    node_weights = weights[solution]    
+def permutationList_to_pairList(permutationList: np.ndarray) -> np.ndarray:
+    return [(node, node if node not in bilat_pairs.keys() else bilat_pairs[node]) for node in permutationList]
 
-    cumsum_from_left = np.cumsum(node_weights)
-    if np.any(cumsum_from_left > 5850):
-        return False
-
-    cumsum_from_right = np.cumsum(node_weights[::-1][1:])
-    if np.any(cumsum_from_right > 5850):
-        return False
-    
-    return True
+def pairList_to_permutationList(pairList: np.ndarray) -> np.ndarray:
+    return [pair[0] for pair in pairList]
 
 def save_solution(solution : np.ndarray, best_distance : int, random_seed : int):
     best_distance = int(best_distance)
     os.makedirs(os.path.dirname("./output_data/"), exist_ok=True)
-    os.makedirs(os.path.dirname("./output_data/Problem_Cholet_1_bis/"), exist_ok=True)
-    os.makedirs(os.path.dirname(f"./output_data/Problem_Cholet_1_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/"), exist_ok=True)
-    solution_filename = f"output_data/Problem_Cholet_1_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/solution.csv"
+    os.makedirs(os.path.dirname("./output_data/Problem_Abers_2_bis/"), exist_ok=True)
+    os.makedirs(os.path.dirname(f"./output_data/Problem_Abers_2_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/"), exist_ok=True)
+    solution_filename = f"output_data/Problem_Abers_2_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/solution.csv"
     np.savetxt(solution_filename, solution.flatten(), delimiter=",", fmt="%d", newline=", ")
-    params_filename = f"output_data/Problem_Cholet_1_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/parameters.csv"
+    params_filename = f"output_data/Problem_Abers_2_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/parameters.csv"
     with open(params_filename, 'w') as f:
         f.write(f"Best Distance found, {best_distance}\n")
         f.write(f"Random Seed, {random_seed}\n")
@@ -88,20 +83,20 @@ def save_solution(solution : np.ndarray, best_distance : int, random_seed : int)
     print("\033[92m {}\033[00m" .format("Solution saved"))
 
 def calculate_total_dist(solution: np.ndarray, data) -> int:
-    dist_matrix = data["dist_matrix_Cholet_pb1_bis.pickle"]
+    dist_matrix = data["dist_matrix_Abers_pb2_bis.pickle"]
 
     # Ensure solution indices are integers
-    solution = solution.astype(int)
+    solution = np.array(solution).astype(int)
     
     total_dist = np.sum(dist_matrix[solution[:-1], solution[1:]])  # Calculate total distance using NumPy array indexing
     return total_dist
 
-def total_distance(solution: np.ndarray, data, best_distance, hasheds) -> int:
+def total_distance(solution_paired: np.ndarray, data, best_distance, hasheds) -> int:
+    solution = pairList_to_permutationList(solution_paired)
     distance = calculate_total_dist(solution, data)
     if distance < best_distance:
         if hash(tuple(solution)) not in hasheds:
-            if verify_calculate_weight(solution, data):
-                return distance
+            return distance
     return INFINITY
 
 def get_all_segments(solution):
@@ -112,10 +107,26 @@ def get_all_segments(solution):
             segments.append(indices)
     return segments
 
+def inverse_node(dist_matrix: dict, solution_paired: np.ndarray, i):
+    i_next = int(i+1) if i < len(solution_paired) - 1 else None
+    i_prev = int(i-1) if i > 0 else None
+    distance = (0 if i_next is None else dist_matrix[int(solution_paired[i][0]), int(solution_paired[i_next][0])]) + (0 if i_prev is None else dist_matrix[int(solution_paired[i][0]), int(solution_paired[i_prev][0])])
+    if (distance > (0 if i_next is None else dist_matrix[int(solution_paired[i][1]), int(solution_paired[i_next][0])]) +  (0 if i_prev is None else dist_matrix[int(solution_paired[i][1]), int(solution_paired[i_prev][0])])):
+        solution_paired[i] = (solution_paired[i][1], solution_paired[i][0])
 
-def three_opt_swap(solution, i, j, k):
-    new_solution = np.concatenate((solution[:i], solution[j:k], solution[i:j], solution[k:]))
-    return new_solution
+def find_best_pairs(solution_paired: np.ndarray, i, j, k):
+    dist_matrix = data["dist_matrix_Abers_pb2_bis.pickle"]
+    inverse_node(dist_matrix, solution_paired, i)
+    inverse_node(dist_matrix, solution_paired, i-1)
+    inverse_node(dist_matrix, solution_paired, j)
+    inverse_node(dist_matrix, solution_paired, j-1)
+    inverse_node(dist_matrix, solution_paired, k)
+    inverse_node(dist_matrix, solution_paired, k-1)
+
+def three_opt_swap(solution_paired, i, j, k):
+    new_solution_paired = np.concatenate((solution_paired[:i], solution_paired[j:k], solution_paired[i:j], solution_paired[k:]))
+    find_best_pairs(new_solution_paired, i, j, k)
+    return new_solution_paired.copy()
 
 def safe_get_hashed_solutions(hashed_solutions):
     items = []
@@ -131,28 +142,28 @@ def safe_get_hashed_solutions(hashed_solutions):
             break
     return items
 
-def three_opt_parallel(segments, best_solution, start_time, shape, solution_lock, event, queue, hashed_solutions, process_number):
+def three_opt_parallel(segments, best_solution_paired, start_time, shape, solution_lock, event, queue, hashed_solutions, process_number):
     print("\033[90m {}\033[00m" .format(f"Process {os.getpid()} started"))
 
     while time.time() - start_time < time_limit:
         best_new_distance = INFINITY
         with solution_lock:
-            best_solution_for_now = np.frombuffer(best_solution, dtype='d').reshape(shape)
-        best_new_solution = np.array([])
+            best_solution_for_now_paired = np.frombuffer(best_solution_paired, dtype='d').reshape(shape)
+        best_new_solution_paired = np.array([])
 
         for _ in range(iterations_per_process):
-            best_iteration_solution = np.array([])
+            best_iteration_solution_paired = np.array([])
             best_new_distance = INFINITY
             for i, j, k in segments:
-                new_solution = three_opt_swap(best_solution_for_now, i, j, k) if best_new_solution.size == 0 else three_opt_swap(best_new_solution, i, j, k)
+                new_solution = three_opt_swap(best_solution_for_now_paired, i, j, k) if best_new_solution_paired.size == 0 else three_opt_swap(best_new_solution_paired, i, j, k)
                 new_distance = total_distance(new_solution, data, best_new_distance, hashed_solutions)
 
                 if new_distance < best_new_distance:
                     best_new_distance = new_distance
-                    best_iteration_solution = new_solution
-            best_new_solution = best_iteration_solution
+                    best_iteration_solution_paired = new_solution
+            best_new_solution_paired = best_iteration_solution_paired
 
-        queue[process_number] = (best_new_distance, best_new_solution)
+        queue[process_number] = (best_new_distance, best_new_solution_paired)
 
         event.wait()
 
@@ -182,7 +193,7 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
 
             if best_queue_solution[0] < best_solution_of_all_time[0]:
                 print("\033[92m {}\033[00m" .format("New absolute best solution found with a distance of"), best_queue_solution[0])
-                print("\033[92m {}\033[00m" .format("Best solution:"), [int(x) for x in best_queue_solution[1]])
+                print("\033[92m {}\033[00m" .format("Best solution:"), [int(x) for x in pairList_to_permutationList(best_queue_solution[1])])
                 print()
                 best_solution_of_all_time = best_queue_solution
                 best_solution_iteration = iteration_count
@@ -190,7 +201,7 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
             else:
                 print("\033[93m {}\033[00m" .format("No new absolute best solution found"))
                 print("\033[93m {}\033[00m" .format("Last iteration that improved the best solution:"), best_solution_iteration)
-                print("\033[93m {}\033[00m" .format("Best solution found:"), [int(x) for x in best_solution_of_all_time[1]])
+                print("\033[93m {}\033[00m" .format("Best solution found:"), [int(x) for x in pairList_to_permutationList(best_solution_of_all_time[1])])
                 print("\033[93m {}\033[00m" .format("With distance:"), best_solution_of_all_time[0])
                 print()
 
@@ -225,7 +236,7 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
                 best_distance.value = best_solutions_found[-1][0]
                 best_solution[:] = best_solutions_found[-1][1].flatten()
 
-            hashed = hash(tuple(best_queue_solution[1]))
+            hashed = hash(tuple(pairList_to_permutationList(best_queue_solution[1])))
             assert hashed not in hashed_solutions, "\033[91m {}\033[00m" .format("Solution already hashed")
             hashed_solutions.append(hashed)
 
@@ -239,7 +250,7 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
         best_solution[:] = best_solution_of_all_time[1].flatten()
 
 
-def three_opt(solution):
+def three_opt(solution : np.ndarray):
     start = time.time()
     best_distance = total_distance(solution, data, INFINITY, [])
     segments = get_all_segments(solution)
@@ -295,38 +306,25 @@ def three_opt(solution):
 
 
 if __name__ == "__main__":
-    print_separation()
-    print("Number of processes:", num_processes)
-    load_data("input_data/Probleme_Cholet_1_bis")
-    solution = data["init_sol_Cholet_pb1_bis.pickle"]
-    print("Initial solution:", solution)
-    print("Initial distance:", total_distance(solution, data, INFINITY, []))
+    print("Number of processes: ", num_processes)
+    load_data("input_data/Probleme_Abers_2_bis")
+    make_dico_bilat_pairs()
+
+    solution = data["init_sol_Abers_pb2_bis.pickle"]
+    solution_paired = permutationList_to_pairList(solution)
+
+    print("Initial solution: ", solution)
+    print("Initial distance: ", total_distance(np.array(solution_paired), data, INFINITY, []))
     print_separation()
 
-    best_solution, best_distance = three_opt(solution)
+    best_solution, best_distance = three_opt(np.array(solution_paired))
+    best_solution = pairList_to_permutationList(best_solution)
 
     print_separation()
     print("\033[92m {}\033[00m" .format("Best solution:"), [int(x) for x in best_solution])
     print("\033[92m {}\033[00m" .format("Best distance:"), best_distance)
     print_separation()
 
-    save_solution(best_solution, best_distance, random_seed)
+    save_solution(np.array(best_solution), best_distance, random_seed)
 
 
-"""
-    Number of processes: 24
-    Random-seed: 322796
-    CPU: ~5GHz
-    Time limit: 600s
-    Best solution: [0, 100, 101, 184, 115, 153, 102, 149, 148, 3, 208, 202, 58, 59, 60, 62, 63, 54, 194, 196, 197, 6, 7, 8, 218, 198, 119, 193, 176, 64, 96, 5, 93, 121, 128, 127, 189, 15, 94, 23, 25, 26, 27, 28, 24, 126, 125, 124, 123, 95, 103, 104, 105, 106, 136, 135, 134, 107, 16, 40, 122, 133, 17, 18, 19, 108, 169, 172, 168, 167, 43, 44, 45, 46, 47, 48, 49, 166, 34, 132, 131, 130, 35, 36, 37, 38, 39, 165, 29, 116, 67, 11, 186, 10, 1, 2, 199, 164, 163, 221, 229, 147, 4, 12, 187, 68, 191, 146, 117, 69, 158, 118, 159, 70, 144, 143, 41, 13, 14, 195, 142, 227, 120, 222, 42, 175, 20, 138, 55, 56, 139, 57, 9, 145, 51, 52, 53, 65, 129, 137, 192, 61, 185, 141, 140, 50, 21, 200, 22, 31, 32, 33, 71, 173, 201, 174, 188, 73, 150, 190, 30, 181, 72, 66, 74, 205, 97, 209, 217, 215, 231, 114, 179, 180, 110, 111, 92, 157, 171, 228, 170, 161, 183, 220, 182, 91, 206, 230, 79, 162, 98, 99, 203, 154, 207, 80, 81, 82, 83, 84, 210, 85, 86, 87, 88, 78, 89, 90, 212, 219, 213, 214, 216, 204, 211, 155, 177, 178, 109, 77, 160, 224, 113, 76, 112, 152, 151, 226, 75, 156, 225, 223, 232]
-    Best distance: 40009.0
-"""
-
-"""
-    Number of processes: 24
-    Random-seed: 319216
-    CPU: ~5GHz
-    Time limit: 600s
-    Best solution: [0, 100, 101, 184, 115, 79, 162, 98, 99, 203, 154, 153, 102, 148, 202, 9, 145, 51, 52, 53, 65, 138, 55, 56, 139, 57, 129, 58, 59, 61, 185, 120, 222, 42, 175, 144, 143, 41, 13, 14, 142, 227, 195, 62, 63, 54, 196, 194, 197, 6, 7, 193, 8, 218, 198, 119, 176, 64, 96, 5, 93, 121, 189, 128, 94, 23, 25, 26, 27, 28, 24, 126, 125, 124, 123, 95, 103, 104, 105, 106, 136, 135, 134, 107, 16, 40, 122, 133, 17, 18, 19, 108, 169, 172, 168, 167, 43, 44, 45, 46, 47, 48, 49, 166, 34, 132, 131, 130, 35, 36, 37, 38, 39, 165, 29, 1, 2, 199, 116, 67, 186, 10, 11, 117, 69, 163, 221, 229, 164, 147, 4, 12, 68, 191, 146, 187, 158, 15, 127, 118, 159, 70, 20, 137, 60, 192, 141, 140, 50, 21, 200, 22, 31, 32, 33, 71, 72, 66, 74, 205, 75, 152, 151, 226, 97, 112, 156, 225, 209, 217, 215, 231, 114, 149, 173, 201, 174, 188, 73, 150, 190, 30, 181, 3, 208, 220, 110, 92, 157, 111, 180, 179, 171, 228, 170, 161, 183, 182, 91, 206, 230, 207, 80, 81, 82, 83, 84, 210, 85, 86, 87, 88, 78, 89, 90, 212, 219, 213, 214, 216, 204, 211, 155, 177, 178, 109, 77, 160, 224, 113, 76, 223, 232]
-    Best distance: 41964.0
-"""
