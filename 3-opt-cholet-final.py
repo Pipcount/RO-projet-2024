@@ -1,3 +1,9 @@
+"""
+    pip install numpy
+    pip install psutil
+    pip install pickle
+"""
+
 import os
 import sys
 import pickle
@@ -5,16 +11,17 @@ import numpy as np
 from itertools import combinations
 import multiprocessing
 import time
+import psutil
 
 INFINITY = sys.maxsize
 data: dict = {}
 num_processes = 24 #(multiprocessing.cpu_count() // 2)
-time_limit = 30
+time_limit = 600
 
 # None for no shuffling
 # np.random.randint(0, 1000000)
-random_seed = np.random.randint(0, 1000000)
-do_screen_clear = False
+random_seed = 322796
+do_screen_clear = True
 
 iteration_without_improvement_threshold = 3
 iterations_per_process = 5
@@ -60,6 +67,25 @@ def verify_calculate_weight(solution: np.ndarray, data) -> bool:
         return False
     
     return True
+
+def save_solution(solution : np.ndarray, best_distance : int, random_seed : int):
+    best_distance = int(best_distance)
+    os.makedirs(os.path.dirname("./output_data/"), exist_ok=True)
+    os.makedirs(os.path.dirname("./output_data/Problem_Cholet_1_bis/"), exist_ok=True)
+    os.makedirs(os.path.dirname(f"./output_data/Problem_Cholet_1_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/"), exist_ok=True)
+    solution_filename = f"output_data/Problem_Cholet_1_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/solution.csv"
+    np.savetxt(solution_filename, solution.flatten(), delimiter=",", fmt="%d", newline=", ")
+    params_filename = f"output_data/Problem_Cholet_1_bis/{best_distance}_{random_seed}_{time_limit}_{num_processes}/parameters.csv"
+    with open(params_filename, 'w') as f:
+        f.write(f"Best Distance found, {best_distance}\n")
+        f.write(f"Random Seed, {random_seed}\n")
+        f.write(f"Time Limit, {time_limit}\n")
+        f.write(f"Number of Processes, {num_processes}\n")
+        f.write(f"CPU frequency, {int(psutil.cpu_freq().current)} MHz") 
+        f.write(f"Iteration without improvement threshold, {iteration_without_improvement_threshold}") 
+        f.write(f"Iterations per process, {iterations_per_process}")
+        f.close()
+    print("\033[92m {}\033[00m" .format("Solution saved"))
 
 def calculate_total_dist(solution: np.ndarray, data) -> int:
     dist_matrix = data["dist_matrix_Cholet_pb1_bis.pickle"]
@@ -283,6 +309,8 @@ if __name__ == "__main__":
     print("\033[92m {}\033[00m" .format("Best solution:"), [int(x) for x in best_solution])
     print("\033[92m {}\033[00m" .format("Best distance:"), best_distance)
     print_separation()
+
+    save_solution(best_solution, best_distance, random_seed)
 
 
 """
