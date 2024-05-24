@@ -28,7 +28,7 @@ do_screen_clear = True
 # Nombre d'itérations sans amélioration de la distance avant de revenir à la solution précédente
 iteration_without_improvement_threshold = 3
 # Nombre d'itérations par processus avant de mettre à jour la solution principale
-iterations_per_process = 5
+iterations_per_process = 1
 # Dictionnaire contenant les paires bilatérales
 bilat_pairs = {}
 
@@ -334,7 +334,7 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
             # On vérifie si la meilleure solution trouvée est meilleure que la meilleure solution de tous les temps et on met à jour les variables en conséquence
             if best_queue_solution[0] < best_solution_of_all_time[0]:
                 print("\033[92m {}\033[00m" .format("New absolute best solution found with a distance of"), best_queue_solution[0])
-                print("\033[92m {}\033[00m" .format("Best solution:"), [int(x) for x in best_queue_solution[1]])
+                print("\033[92m {}\033[00m" .format("Best solution:"), [int(x) for x in pairList_to_permutationList(best_queue_solution[1])])
                 print()
                 best_solution_of_all_time = best_queue_solution
                 best_solution_iteration = iteration_count
@@ -342,7 +342,7 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
             else:
                 print("\033[93m {}\033[00m" .format("No new absolute best solution found"))
                 print("\033[93m {}\033[00m" .format("Last iteration that improved the best solution:"), best_solution_iteration)
-                print("\033[93m {}\033[00m" .format("Best solution found:"), [int(x) for x in best_solution_of_all_time[1]])
+                print("\033[93m {}\033[00m" .format("Best solution found:"), [int(x) for x in pairList_to_permutationList(best_solution_of_all_time[1])])
                 print("\033[93m {}\033[00m" .format("With distance:"), best_solution_of_all_time[0])
                 print()
 
@@ -384,7 +384,7 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
                 best_solution[:] = best_solutions_found[-1][1].flatten()
 
             # On vérifie si la solution n'a pas déjà été trouvée et on l'ajoute à la liste des solutions déjà hashées
-            hashed = hash(tuple(best_queue_solution[1]))
+            hashed = hash(tuple(pairList_to_permutationList(best_queue_solution[1])))
             assert hashed not in hashed_solutions, "\033[91m {}\033[00m" .format("Solution already hashed")
             hashed_solutions.append(hashed)
 
@@ -398,7 +398,6 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
     with best_distance.get_lock() and solution_lock:
         best_distance.value = best_solution_of_all_time[0]
         best_solution[:] = best_solution_of_all_time[1].flatten()
-
 
 
 def three_opt(solution):
