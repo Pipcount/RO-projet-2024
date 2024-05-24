@@ -394,6 +394,12 @@ def update_solution(best_solution, best_distance, start_time, solution_lock, eve
             event.set()
             event.clear()
 
+    # Lorsque le temps est écoulé, on vérifie si une solution a été trouvée
+    if best_solution_of_all_time == (INFINITY, None):
+        print("\033[91m {}\033[00m" .format("No solution found"))
+        print_separation()
+        return
+
     # Lorque le temps est écoulé, on met à jour la meilleure solution trouvée avec la meilleure solution de tous les temps
     with best_distance.get_lock() and solution_lock:
         best_distance.value = best_solution_of_all_time[0]
