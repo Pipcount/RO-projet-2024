@@ -1,9 +1,3 @@
-"""
-    pip install numpy
-    pip install py-cpuinfo
-    pip install pickle
-"""
-
 import os
 import sys
 import pickle
@@ -16,13 +10,15 @@ import cpuinfo
 """
 Ce fichier contient l'implémentation de l'algorithme 3-opt pour le problème du Pays de Cholet.
 Auteurs: JANKE Nico, LEGUE Denis
+Date: 24/05/2024
+Dépendances à installer avec pip: numpy, pickle, cpuinfo
 """
 
 # Constantes
 INFINITY = sys.maxsize
 data: dict = {}
 # Nombre de processus qui vont réaliser les opérations 3-opt en parallèle
-num_processes = 6 
+num_processes = 24 
 # Limite de temps en secondes pour l'exécution de l'algorithme
 time_limit = 600 
 # np.random.randint(0, 1000000) Seed pour la génération de nombres aléatoires utilisée pour mélanger les segments
