@@ -28,7 +28,7 @@ do_screen_clear = True
 # Nombre d'itérations sans amélioration de la distance avant de revenir à la solution précédente
 iteration_without_improvement_threshold = 3
 # Nombre d'itérations par processus avant de mettre à jour la solution principale
-iterations_per_process = 5
+iterations_per_process = 2
 # Dictionnaire contenant les paires bilatérales
 bilat_pairs = {}
 
